@@ -1,6 +1,9 @@
 import argparse
 import sys
 import os
+import subprocess
+import re
+
 from configparser import ConfigParser
 from enum import Enum
 from operator import attrgetter
@@ -27,31 +30,21 @@ class Format:
 		self.agent = agent
 
 	def build(self, dest):
+		cmd = []
 		if self.format is not None:
-			fmt='--format "{0}"'.format(os.path.join(dest,self.format))
+			cmd+=['--format "{0}"'.format(os.path.join(dest,self.format))]
 
 		if self.agent is not None:
-			agt='--db "{0}"'.format(self.agent)
+			cmd+=['--db "{0}"'.format(self.agent)]
 
-		if self.format is None:
-			if self.agent is None:
-				return ""
-			else:
-				return agt
-		else:
-			if self.agent is None:
-				return fmt
-			else:
-				return "{0} {1}".format(fmt, agt)
-			
-	def __str__():
-		self.build("")
-
-	def __repr__():
-		self.build("")
+		return cmd
 		
 # Filebot wrapper
 class FileBot:
+	# pre-compiled regex objects
+	move_regex = re.compile(r"\[(TEST|MOVE)\] Rename \[(.+)\] to \[(.+)\]")
+	skip_regex = re.compile(r"Skipped \[(.+)\] because \[(.+)\] already exists")
+	
 	def __init__(self, binary):
 		self.binary_path=binary
 		self.order="airdate"
@@ -64,11 +57,14 @@ class FileBot:
 		self.filters=None
 		self.strict=False
 
-	def run(self, files, mode=Mode.TV, test=False, prompt=False, display=False):
+	def run(self, files, mode=Mode.TV, test=False, prompt=False, display=False, verbose=False):
 		cmd=[self.binary_path]
 
 		if self.xattr is False:
 			cmd+=["-no-xattr"]
+
+		if self.strict is not True:
+			cmd+=["-non-strict"]
 
 		if test is True:
 			cmd+=["--action test"]
@@ -76,11 +72,11 @@ class FileBot:
 			cmd+=["--action move"]
 			
 		if mode is Mode.ANIME:
-			cmd+=[self.anime.build(self.destination)]
+			cmd+=self.anime.build(self.destination)
 		elif mode is Mode.MOVIE:
-			cmd+=[self.movie.build(self.destination)]
+			cmd+=self.movie.build(self.destination)
 		elif mode is Mode.TV:
-			cmd+=[self.tv.build(self.destination)]
+			cmd+=self.tv.build(self.destination)
 		elif mode is CLEANUP:
 			pass
 		elif mode is REVERT:
@@ -89,8 +85,40 @@ class FileBot:
 		for f in files:
 			cmd+=['-rename "{0}"'.format(f)]
 
-		print(cmd)
-	
+		# assemble the command
+		command=""
+		for c in cmd:
+			command+=c
+			command+=" "
+
+		# check to see if we need to display the command
+		if display is True:		
+			print(command)
+			return True
+
+		# run the command
+		p = subprocess.Popen(command, shell=True, stdout=subprocess.PIPE, stderr=subprocess.STDOUT)
+		for byte_line in p.stdout.readlines():
+			line = byte_line.decode("utf-8")[:-1]
+			
+			match_move = self.move_regex.match(line)
+			match_skip = self.skip_regex.match(line)
+				
+			if match_move is not None:
+				print("{0} From: {1}".format(match_move.group(1), match_move.group(2)))
+				print("     To:   {0}\n".format(match_move.group(3)))
+
+			if match_skip is not None:
+				print("Skipped: {0}".format(match_skip.group(1)))
+				print("Because: {0}\n".format(match_skip.group(2)))
+
+			if verbose is True and match_move is None and match_skip is None:
+				print(line)
+
+			
+		retval = p.wait()
+		return retval == 0
+		
 def main():
 	# some default parameters
 	config_file=os.path.expanduser("~/.config/flapper/config.cfg")
@@ -105,7 +133,9 @@ def main():
 			    dest="./",
 			    filter=None,
 			    name=None,
-			    config=None)
+			    config=None,
+			    verbose=False,
+			    display=False)
 	
 	parser.add_argument('paths', metavar="PATH",  nargs="+", help="Files or directories to match.")
 	
@@ -130,6 +160,7 @@ def main():
 	parser.add_argument("--override",	 		action="store_true", 	dest="override",	help="Override any conflicts.")
 	parser.add_argument("--strict", 			action="store_true", 	dest="strict", 		help="Strict Matching.")
 	parser.add_argument("--non-strict", 			action="store_false", 	dest="strict", 		help="Non-strict matching. This is the default behaivor.")
+	parser.add_argument("--verbose",			action="store_true",	dest="verbose",		help="Print all output from Filebot.")
 	parser.add_argument("--xattr", 				action="store_true", 	dest="x-attr", 		help="Set extended attribuites.")
 	
 	args = parser.parse_args()
@@ -179,9 +210,11 @@ def main():
 	filebot.tv=Format(tv_cfg.get("format", "{n} - {s00e00} - {t}"),tv_cfg.get("agent", "TheTVDB"))
 	filebot.destination=general_cfg.get("destination", "./")
 
-	filebot.run(args.paths, mode=Mode.ANIME)
-	filebot.run(args.paths, mode=Mode.MOVIE)
-	filebot.run(args.paths, mode=Mode.TV)
+	# run filebot
+	if args.test is True:
+		filebot.run(args.paths, mode=args.mode, test=True, verbose=args.verbose, display=args.display)
+	else:
+		filebot.run(args.paths, mode=args.mode, test=False, verbose=args.verbose, display=args.display)
 	
 
 # keep at bottom
