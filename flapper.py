@@ -1,7 +1,10 @@
 import argparse
 import sys
+import os
+from configparser import ConfigParser
 from enum import Enum
 from operator import attrgetter
+from pathlib import Path
 
 # enumeration of the modes
 class Mode(Enum):
@@ -16,8 +19,82 @@ class SortingHelpFormatter(argparse.HelpFormatter):
 	def add_arguments(self, actions):
 		actions = sorted(actions, key=attrgetter('dest'))
 		super(SortingHelpFormatter, self).add_arguments(actions)
+
+# format class
+class Format:
+	def __init__(self, format=None, agent=None):
+		self.format = format
+		self.agent = agent
+
+	def build(self, dest):
+		if self.format is not None:
+			fmt='--format "{0}"'.format(os.path.join(dest,self.format))
+
+		if self.agent is not None:
+			agt='--db "{0}"'.format(self.agent)
+
+		if self.format is None:
+			if self.agent is None:
+				return ""
+			else:
+				return agt
+		else:
+			if self.agent is None:
+				return fmt
+			else:
+				return "{0} {1}".format(fmt, agt)
+			
+	def __str__():
+		self.build("")
+
+	def __repr__():
+		self.build("")
+		
+# Filebot wrapper
+class FileBot:
+	def __init__(self, binary):
+		self.binary_path=binary
+		self.order="airdate"
+		self.strict=False
+		self.anime=Format()
+		self.movie=Format()
+		self.tv=Format()
+		self.destination="./"
+		self.xattr=False
+		self.filters=None
+		self.strict=False
+
+	def run(self, files, mode=Mode.TV, test=False, prompt=False, display=False):
+		cmd=[self.binary_path]
+
+		if self.xattr is False:
+			cmd+=["-no-xattr"]
+
+		if test is True:
+			cmd+=["--action test"]
+		else:
+			cmd+=["--action move"]
+			
+		if mode is Mode.ANIME:
+			cmd+=[self.anime.build(self.destination)]
+		elif mode is Mode.MOVIE:
+			cmd+=[self.movie.build(self.destination)]
+		elif mode is Mode.TV:
+			cmd+=[self.tv.build(self.destination)]
+		elif mode is CLEANUP:
+			pass
+		elif mode is REVERT:
+			pass
+
+		for f in files:
+			cmd+=['-rename "{0}"'.format(f)]
+
+		print(cmd)
 	
 def main():
+	# some default parameters
+	config_file=os.path.expanduser("~/.config/flapper/config.cfg")
+	
 	# parse command line options
 	
 	parser = argparse.ArgumentParser(description="Filebot wrapper.", formatter_class=SortingHelpFormatter)
@@ -26,9 +103,9 @@ def main():
 			    test=False,
 			    prompt=False,
 			    dest="./",
-			    filter="",
-			    name="",
-			    config="~/.config/flapper/config.cfg")
+			    filter=None,
+			    name=None,
+			    config=None)
 	
 	parser.add_argument('paths', metavar="PATH",  nargs="+", help="Files or directories to match.")
 	
@@ -53,9 +130,60 @@ def main():
 	parser.add_argument("--override",	 		action="store_true", 	dest="override",	help="Override any conflicts.")
 	parser.add_argument("--strict", 			action="store_true", 	dest="strict", 		help="Strict Matching.")
 	parser.add_argument("--non-strict", 			action="store_false", 	dest="strict", 		help="Non-strict matching. This is the default behaivor.")
-	parser.add_argument("--xattr", 			action="store_true", 	dest="x-attr", 		help="Set extended attribuites.")
+	parser.add_argument("--xattr", 				action="store_true", 	dest="x-attr", 		help="Set extended attribuites.")
 	
 	args = parser.parse_args()
+
+	# if a config file was passed, use that
+	if args.config is not None:
+		print("Support for custom config paths forthcoming.")
+		sys.exit(1)
+	else:
+		p = Path(config_file)
+		if not p.exists():
+			print("config file not found, creating default version.")
+			# make sure the directory exists
+			if not p.parent.exists():
+				p.parent.mkdir(parents=True)
+			
+			# write the new config file
+			config = ConfigParser()
+			config['ANIME']={"format": "{n} - [{absolute}] - {t}",
+					 "agent": "anidb"}
+			config['MOVIES']={"format": "{n} ({y})",
+					  "agent": "TheMovieDB"}
+			config['TV']={"format": "{n} - {s00e00} - {t}",
+				      "agent": "TheTVDB"}
+			config['GENERAL']={"filebot_binary": "/usr/bin/filebot",
+					   "destination": "./"}
+			with open(config_file, 'w') as configfile:
+				config.write(configfile)
+					   
+	# parse the config file
+	config = ConfigParser()
+	config.read(config_file)
+
+	try:
+		tv_cfg=config['TV']
+		movie_cfg=config['MOVIE']
+		anime_cfg=config['ANIME']
+		general_cfg=config['GENERAL']
+	except KeyError as err:
+		print("Malformed config file.\nMissing section: {0}".format(err))
+		sys.exit(1)
+	
+	# build the Filebot wrapper
+	filebot = FileBot(general_cfg.get("filebot_binary","/usr/bin/filebot"))
+	filebot.anime=Format(anime_cfg.get("format", "{n} - [{absolute}] - {t}"), anime_cfg.get("agent", "anidb"))
+	filebot.movie=Format(movie_cfg.get("format", "{n} ({y})"), movie_cfg.get("agent", "TheMovieDB"))
+	filebot.tv=Format(tv_cfg.get("format", "{n} - {s00e00} - {t}"),tv_cfg.get("agent", "TheTVDB"))
+	filebot.destination=general_cfg.get("destination", "./")
+
+	filebot.run(args.paths, mode=Mode.ANIME)
+	filebot.run(args.paths, mode=Mode.MOVIE)
+	filebot.run(args.paths, mode=Mode.TV)
+	
+
 # keep at bottom
 if __name__ == "__main__":
 	main()
