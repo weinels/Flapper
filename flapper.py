@@ -62,6 +62,7 @@ class FileBot:
 		self.strict=False
 		self.raw=False
 		self.display=False
+		self.dvd=False
 
 	def run(self, files, mode=Mode.TV, test=False, dest="./"):
 		cmd=[self.binary_path]
@@ -72,6 +73,8 @@ class FileBot:
 		if self.strict is not True:
 			cmd+=["-non-strict"]
 
+		if self.order is not None:
+			cmd+=["--order {0}".format(self.order)]
 		if test is True:
 			cmd+=["--action test"]
 		else:
@@ -79,7 +82,6 @@ class FileBot:
 
 		if dest == "./":
 			dest = ""
-			
 
 		if mode is Mode.CLEANUP or mode is Mode.REVERT:
 			if mode is Mode.CLEANUP:
@@ -191,7 +193,10 @@ def main():
 			    name=None,
 			    config=None,
 			    raw=False,
-			    display=False)
+			    display=False,
+			    dvd=False,
+			    airdate=True,
+			    absolute=False)
 	
 	parser.add_argument('paths', metavar="PATH",  nargs="+", help="Files or directories to match.")
 	
@@ -210,6 +215,11 @@ def main():
 	filter_group.add_argument("-f", "--filter", 	metavar="STRING", 	action="append",	dest="filters",		help="Applies the passed filter.")
 	filter_group.add_argument("-n", "--name", 	metavar="STRING", 	action="append",	dest="names",		help="Applies a filter to match the show/movie name.")
 
+	order_group = parser.add_argument_group("Ordering", "Determines which ordering to use when matching. Airdate is the defualt.")
+	order_group.add_argument("--dvd",		action="store_true",	dest="dvd",		help="Use the DVD ordering.")
+	order_group.add_argument("--airdate",		action="store_true",	dest="airdate",		help="Use the airdate ordering.")
+	order_group.add_argument("--absolute",		action="store_true",	dest="absolute",	help="Use the absolute episode number ordering.")
+	
 	parser.add_argument("--config",		metavar="PATH",	action="store",		dest="config",		help="Use the passed config file. (default: %(default)s)")
 	parser.add_argument("--dest",		metavar="PATH",	action="store",		dest="dest",		help="Specify the destination of renamed media. (default: %(default)s)")
 	parser.add_argument("--display", 			action="store_true", 	dest="display", 	help="Displays filebot commands instead of running them.")
@@ -266,6 +276,14 @@ def main():
 	filebot.tv=Format(tv_cfg.get("format", "{n} - {s00e00} - {t}"),tv_cfg.get("agent", "TheTVDB"))
 	filebot.raw=args.raw
 	filebot.display=args.display
+	filebot.dvd=args.dvd
+
+	if args.dvd is True:
+		filebot.order="dvd"
+	elif args.absoulue is True:
+		filebot.order="airdate"
+	else:
+		filebot.order="airdate"
 	
 	dest=general_cfg.get("destination", "./")
 
