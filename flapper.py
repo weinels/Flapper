@@ -3,7 +3,7 @@ import sys
 import os
 import subprocess
 import re
-
+import shlex
 from configparser import ConfigParser
 from enum import Enum
 from operator import attrgetter
@@ -26,7 +26,10 @@ class SortingHelpFormatter(argparse.HelpFormatter):
 # format class
 class Format:
 	def __init__(self, format=None, agent=None):
-		self.format = format
+		if format is None:
+			self.format = None
+		else:
+			self.format = format.replace("'","\\'").replace("`","\\`").replace('"','\\"')
 		self.agent = agent
 
 	def build(self, dest):
@@ -44,6 +47,8 @@ class FileBot:
 	# pre-compiled regex objects
 	move_regex = re.compile(r"\[(TEST|MOVE)\] Rename \[(.+)\] to \[(.+)\]")
 	skip_regex = re.compile(r"Skipped \[(.+)\] because \[(.+)\] already exists")
+	access_regex = re.compile(r"java.nio.file.AccessDeniedException: (.+)")
+	revert_regex = re.compile(r"\[(TEST|MOVE)\] Revert \[(.+)\] to \[(.+)\]")
 	
 	def __init__(self, binary):
 		self.binary_path=binary
@@ -52,12 +57,13 @@ class FileBot:
 		self.anime=Format()
 		self.movie=Format()
 		self.tv=Format()
-		self.destination="./"
 		self.xattr=False
 		self.filters=None
 		self.strict=False
+		self.raw=False
+		self.display=False
 
-	def run(self, files, mode=Mode.TV, test=False, prompt=False, display=False, verbose=False):
+	def run(self, files, mode=Mode.TV, test=False, dest="./"):
 		cmd=[self.binary_path]
 
 		if self.xattr is False:
@@ -70,54 +76,104 @@ class FileBot:
 			cmd+=["--action test"]
 		else:
 			cmd+=["--action move"]
-			
-		if mode is Mode.ANIME:
-			cmd+=self.anime.build(self.destination)
-		elif mode is Mode.MOVIE:
-			cmd+=self.movie.build(self.destination)
-		elif mode is Mode.TV:
-			cmd+=self.tv.build(self.destination)
-		elif mode is CLEANUP:
-			pass
-		elif mode is REVERT:
-			pass
 
-		for f in files:
-			cmd+=['-rename "{0}"'.format(f)]
+		if dest == "./":
+			dest = ""
+			
+
+		if mode is Mode.CLEANUP or mode is Mode.REVERT:
+			if mode is Mode.CLEANUP:
+				pass
+			elif mode is Mode.REVERT:
+				for f in files:
+					cmd+=['-script fn:revert "{0}"'.format(f)]
+		else:
+			if mode is Mode.ANIME:
+				cmd+=self.anime.build(dest)
+			elif mode is Mode.MOVIE:
+				cmd+=self.movie.build(dest)
+			elif mode is Mode.TV:
+				cmd+=self.tv.build(dest)
+			for f in files:
+				cmd+=['-rename "{0}"'.format(f)]
 
 		# assemble the command
 		command=""
 		for c in cmd:
 			command+=c
 			command+=" "
-
+			
 		# check to see if we need to display the command
-		if display is True:		
+		if self.display is True:		
 			print(command)
 			return True
 
 		# run the command
+		files=[]
 		p = subprocess.Popen(command, shell=True, stdout=subprocess.PIPE, stderr=subprocess.STDOUT)
+
 		for byte_line in p.stdout.readlines():
 			line = byte_line.decode("utf-8")[:-1]
+
+			if self.raw is True:
+				print(line)
 			
 			match_move = self.move_regex.match(line)
 			match_skip = self.skip_regex.match(line)
-				
+			match_access = self.access_regex.match(line)
+			match_revert = self.revert_regex.match(line)
+			
 			if match_move is not None:
-				print("{0} From: {1}".format(match_move.group(1), match_move.group(2)))
-				print("     To:   {0}\n".format(match_move.group(3)))
+				files+=[match_move.group(3)]
+				if self.raw is not True:
+					print("{0} From: {1}".format(match_move.group(1), match_move.group(2)))
+					print("     To:   {0}".format(match_move.group(3)))
 
 			if match_skip is not None:
 				print("Skipped: {0}".format(match_skip.group(1)))
-				print("Because: {0}\n".format(match_skip.group(2)))
+				print("Because: {0}".format(match_skip.group(2)))
 
-			if verbose is True and match_move is None and match_skip is None:
-				print(line)
+			if match_revert is not None:
+				files+=[match_revert.group(3)]
+				if self.raw is not True:
+					print("{0} Revert: {1}".format(match_revert.group(1), match_revert.group(2)))
+					print("         To: {0}".format(match_revert.group(3)))
 
-			
+			if match_access is not None:
+				if self.raw is not True:
+					print("Access denied: {0}".format(match_access.group(1)))
+				
 		retval = p.wait()
-		return retval == 0
+
+		print("")
+
+		if len(files) == 0:
+			return None
+		else:
+			return files
+
+# mimics the select function from bash
+def selector(items, prompt):
+	if not items:
+		return ''
+		
+	def ok(reply, itemcount):
+		try:
+			n = int(reply)
+			return 1 <= n <= itemcount
+		except:
+			return False
+			
+	reply = -1
+	itemcount = len(items)
+
+	while not ok(reply, itemcount):
+		for indexitem in enumerate(items):
+			print ("{0}) {1}".format(indexitem[0]+1, indexitem[1]))
+
+		reply = input(prompt).strip()
+		
+	return items[int(reply)-1]
 		
 def main():
 	# some default parameters
@@ -134,7 +190,7 @@ def main():
 			    filter=None,
 			    name=None,
 			    config=None,
-			    verbose=False,
+			    raw=False,
 			    display=False)
 	
 	parser.add_argument('paths', metavar="PATH",  nargs="+", help="Files or directories to match.")
@@ -160,7 +216,7 @@ def main():
 	parser.add_argument("--override",	 		action="store_true", 	dest="override",	help="Override any conflicts.")
 	parser.add_argument("--strict", 			action="store_true", 	dest="strict", 		help="Strict Matching.")
 	parser.add_argument("--non-strict", 			action="store_false", 	dest="strict", 		help="Non-strict matching. This is the default behaivor.")
-	parser.add_argument("--verbose",			action="store_true",	dest="verbose",		help="Print all output from Filebot.")
+	parser.add_argument("--raw",				action="store_true",	dest="raw",		help="Prints the raw output from Filebot.")
 	parser.add_argument("--xattr", 				action="store_true", 	dest="x-attr", 		help="Set extended attribuites.")
 	
 	args = parser.parse_args()
@@ -208,13 +264,41 @@ def main():
 	filebot.anime=Format(anime_cfg.get("format", "{n} - [{absolute}] - {t}"), anime_cfg.get("agent", "anidb"))
 	filebot.movie=Format(movie_cfg.get("format", "{n} ({y})"), movie_cfg.get("agent", "TheMovieDB"))
 	filebot.tv=Format(tv_cfg.get("format", "{n} - {s00e00} - {t}"),tv_cfg.get("agent", "TheTVDB"))
-	filebot.destination=general_cfg.get("destination", "./")
+	filebot.raw=args.raw
+	filebot.display=args.display
+	
+	dest=general_cfg.get("destination", "./")
 
 	# run filebot
-	if args.test is True:
-		filebot.run(args.paths, mode=args.mode, test=True, verbose=args.verbose, display=args.display)
+	if args.mode == Mode.ANIME:
+		print("Anime matching")
+		print("--------------")
+		print("Part 1: Getting airdates for videos.\n")
+		rfiles = fullrun(filebot, files=args.paths, mode=Mode.ANIME, test=args.test, prompt=args.prompt, dest="./")
+		if rfiles is not None:
+			print("Part 2: Matching videos using season/episode numbering.\n")
+			if fullrun(filebot, files=rfiles, mode=Mode.TV, test=args.test, prompt=args.prompt, dest=dest) is None:
+				print("")
+				if selector(["Yes", "No"], "Revert Files? ") == "Yes":
+					fullrun(filebot, files=rfiles, mode=Mode.REVERT, dest="./")				
+			
 	else:
-		filebot.run(args.paths, mode=args.mode, test=False, verbose=args.verbose, display=args.display)
+		fullrun(filebot, files=args.paths, mode=args.mode, test=args.test, prompt=args.prompt, dest=dest)
+
+# run filebot, performing a test run if needed and providing a prompt is needed
+def fullrun(filebot, files, mode, test=False,prompt=False,  dest="./"):
+	if test is True or prompt is True:
+		ret = filebot.run(files, mode=mode, test=True,  dest=dest)
+		if ret is not None:
+			if prompt is True:
+				if selector(["Continue", "Stop"],"#? ") == "Stop":
+					return None
+			else:
+				return None
+		else:
+			return None
+
+	return filebot.run(files, mode=mode, test=False,  dest=dest)
 	
 
 # keep at bottom
