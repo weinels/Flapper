@@ -35,10 +35,10 @@ class Format:
 	def build(self, dest):
 		cmd = []
 		if self.format is not None:
-			cmd+=['--format "{0}"'.format(os.path.join(dest,self.format))]
+			cmd+=['--format',  '{0}'.format(os.path.join(dest,self.format))]
 
 		if self.agent is not None:
-			cmd+=['--db "{0}"'.format(self.agent)]
+			cmd+=['--db', '{0}'.format(self.agent)]
 
 		return cmd
 		
@@ -94,7 +94,7 @@ class FileBot:
 				pass
 			elif mode is Mode.REVERT:
 				for f in files:
-					cmd+=['-script", "fn:revert", {0}'.format(f)]
+					cmd+=['-script', 'fn:revert', '{0}'.format(f)]
 		else:
 			if mode is Mode.ANIME:
 				cmd+=self.anime.build(dest)
@@ -128,8 +128,8 @@ class FileBot:
 			if match_move is not None:
 				files+=[match_move.group(3)]
 				if self.raw is not True:
-					print("{0} From: {1}".format(match_move.group(1), match_move.group(2)))
-					print("     To:   {0}".format(match_move.group(3)))
+					print("{0} Rename: {1}".format(match_move.group(1), match_move.group(2)))
+					print("         To: {0}".format(match_move.group(3)))
 
 			if match_skip is not None:
 				print("Skipped: {0}".format(match_skip.group(1)))
@@ -280,39 +280,57 @@ def main():
 
 	if args.fix is True:
 		filebot.fix()
-		sys.exit()
+		return
 	
 	# run filebot
 	if args.mode == Mode.ANIME:
 		print("Anime matching")
 		print("--------------")
-		print("Part 1: Getting airdates for videos.\n")
-		rfiles = fullrun(filebot, files=args.paths, mode=Mode.ANIME, test=args.test, prompt=args.prompt, dest="./")
+		print("Part 1: Getting airdates.\n")
+		if args.test is True or args.prompt is True:
+			ret = filebot.run(args.paths, mode=Mode.ANIME, test=True,  dest="./")
+			if ret is not None:
+				if args.prompt is True:
+					if selector(["Continue", "Stop"],"#? ") == "Stop":
+						return
+				else:
+					return
+			else:
+				return
+
+		rfiles = filebot.run(args.paths, mode=Mode.ANIME, test=False,  dest="./")
 		if rfiles is not None:
-			print("Part 2: Matching videos using season/episode numbering.\n")
-			if fullrun(filebot, files=rfiles, mode=Mode.TV, test=args.test, prompt=args.prompt, dest=dest) is None:
-				print("")
-				if selector(["Yes", "No"], "Revert Files? ") == "Yes":
-					fullrun(filebot, files=rfiles, mode=Mode.REVERT, dest="./")				
+			print("Part 2: Matching season/episode numbering.\n")
+			if args.test is True or args.prompt is True:
+				ret = filebot.run(rfiles, mode=Mode.TV, test=True,  dest=dest)
+				if ret is not None:
+					if args.prompt is True:
+						res = selector(["Continue", "Revert", "Stop"],"#? ")
+						if res == "Stop":
+							return
+						elif res == "Revert":
+							filebot.run(rfiles, mode=Mode.REVERT, dest="./")
+							return
+					else:
+						return
+				else:
+					return
+			
+			filebot.run(rfiles, mode=Mode.TV, test=False,  dest=dest)
 			
 	else:
-		fullrun(filebot, files=args.paths, mode=args.mode, test=args.test, prompt=args.prompt, dest=dest)
-
-# run filebot, performing a test run if needed and providing a prompt is needed
-def fullrun(filebot, files, mode, test=False,prompt=False,  dest="./"):
-	if test is True or prompt is True:
-		ret = filebot.run(files, mode=mode, test=True,  dest=dest)
-		if ret is not None:
-			if prompt is True:
-				if selector(["Continue", "Stop"],"#? ") == "Stop":
-					return None
+		if args.test is True or args.prompt is True:
+			ret = filebot.run(args.paths, mode=args.mode, test=True,  dest=dest)
+			if ret is not None:
+				if args.prompt is True:
+					if selector(["Continue", "Stop"],"#? ") == "Stop":
+						return
+				else:
+					return
 			else:
-				return None
-		else:
-			return None
+				return
 
-	return filebot.run(files, mode=mode, test=False,  dest=dest)
-	
+		filebot.run(args.paths, mode=args.mode, test=False,  dest=dest)
 
 # keep at bottom
 if __name__ == "__main__":
