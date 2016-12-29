@@ -29,7 +29,7 @@ class Format:
 		if format is None:
 			self.format = None
 		else:
-			self.format = format.replace("'","\\'").replace("`","\\`").replace('"','\\"')
+			self.format = format#.replace("'","\\'").replace("`","\\`").replace('"','\\"')
 		self.agent = agent
 
 	def build(self, dest):
@@ -62,7 +62,6 @@ class FileBot:
 		self.strict=False
 		self.raw=False
 		self.display=False
-		self.dvd=False
 
 	def run(self, files, mode=Mode.TV, test=False, dest="./"):
 		cmd=[self.binary_path]
@@ -74,11 +73,12 @@ class FileBot:
 			cmd+=["-non-strict"]
 
 		if self.order is not None:
-			cmd+=["--order {0}".format(self.order)]
+			cmd+=["--order", "{0}".format(self.order)]
+
 		if test is True:
-			cmd+=["--action test"]
+			cmd+=["--action", "test"]
 		else:
-			cmd+=["--action move"]
+			cmd+=["--action", "move"]
 
 		if dest == "./":
 			dest = ""
@@ -88,7 +88,7 @@ class FileBot:
 				pass
 			elif mode is Mode.REVERT:
 				for f in files:
-					cmd+=['-script fn:revert "{0}"'.format(f)]
+					cmd+=['-script", "fn:revert", {0}'.format(f)]
 		else:
 			if mode is Mode.ANIME:
 				cmd+=self.anime.build(dest)
@@ -97,25 +97,21 @@ class FileBot:
 			elif mode is Mode.TV:
 				cmd+=self.tv.build(dest)
 			for f in files:
-				cmd+=['-rename "{0}"'.format(f)]
+				cmd+=['-rename', '{0}'.format(f)]
 
-		# assemble the command
-		command=""
-		for c in cmd:
-			command+=c
-			command+=" "
-			
 		# check to see if we need to display the command
 		if self.display is True:		
-			print(command)
+			print(" ".join(cmd))
 			return True
 
 		# run the command
 		files=[]
-		p = subprocess.Popen(command, shell=True, stdout=subprocess.PIPE, stderr=subprocess.STDOUT)
-
-		for byte_line in p.stdout.readlines():
-			line = byte_line.decode("utf-8")[:-1]
+		p = subprocess.run(cmd, check=True, stdout=subprocess.PIPE, encoding="utf-8")
+#		p = subprocess.Popen(command, shell=True, stdout=subprocess.PIPE, stderr=subprocess.STDOUT)
+#		print(p.stdout)
+#		return None
+		for line in p.stdout.split("\n"):
+		#	line = byte_line.decode("utf-8")[:-1]
 
 			if self.raw is True:
 				print(line)
@@ -145,8 +141,6 @@ class FileBot:
 				if self.raw is not True:
 					print("Access denied: {0}".format(match_access.group(1)))
 				
-		retval = p.wait()
-
 		print("")
 
 		if len(files) == 0:
@@ -194,9 +188,7 @@ def main():
 			    config=None,
 			    raw=False,
 			    display=False,
-			    dvd=False,
-			    airdate=True,
-			    absolute=False)
+			    order="airdate")
 	
 	parser.add_argument('paths', metavar="PATH",  nargs="+", help="Files or directories to match.")
 	
@@ -204,30 +196,30 @@ def main():
 	modes_group.add_argument("-a", 	"--anime",	action="store_const", 	dest="mode",	const=Mode.ANIME, 	help="Anime matching mode. This will first rename using absolute numbering, then match using season numbering.")
 	modes_group.add_argument("-m",	"--movies", 	action="store_const", 	dest="mode",	const=Mode.MOVIE, 	help="Movie matching mode.")
 	modes_group.add_argument(	"--tv", 	action="store_const", 	dest="mode",	const=Mode.TV,		help="TV matching mode.")
-	modes_group.add_argument("-c",	"--cleanup", 	action="store_const", 	dest="mode", 	const=Mode.CLEANUP,	help="Cleanup mode.")
+#	modes_group.add_argument("-c",	"--cleanup", 	action="store_const", 	dest="mode", 	const=Mode.CLEANUP,	help="Cleanup mode.")
 	modes_group.add_argument(	"--revert", 	action="store_const", 	dest="mode", 	const=Mode.REVERT,	help="Reverts changes made to file.")
 
 	test_group = parser.add_argument_group("Dry Run", "Options for making dry runs. When any of these are set, no files will be modified.")
 	test_group.add_argument("-t", "--test",		action="store_true",	dest="test",	help="Performs a test run, displaying the changes that would be made.")
 	test_group.add_argument("-p", "--prompt", 	action="store_true", 	dest="prompt",	help="Make a test run then prompt the user to continue with matching. (Same as -tp).")
 
-	filter_group = parser.add_argument_group("Filters", "These commands apply filters to Filebot. These commands may be used multiple times to apply multiple filters.")
-	filter_group.add_argument("-f", "--filter", 	metavar="STRING", 	action="append",	dest="filters",		help="Applies the passed filter.")
-	filter_group.add_argument("-n", "--name", 	metavar="STRING", 	action="append",	dest="names",		help="Applies a filter to match the show/movie name.")
+#	filter_group = parser.add_argument_group("Filters", "These commands apply filters to Filebot. These commands may be used multiple times to apply multiple filters.")
+#	filter_group.add_argument("-f", "--filter", 	metavar="STRING", 	action="append",	dest="filters",		help="Applies the passed filter.")
+#	filter_group.add_argument("-n", "--name", 	metavar="STRING", 	action="append",	dest="names",		help="Applies a filter to match the show/movie name.")
 
 	order_group = parser.add_argument_group("Ordering", "Determines which ordering to use when matching. Airdate is the defualt.")
-	order_group.add_argument("--dvd",		action="store_true",	dest="dvd",		help="Use the DVD ordering.")
-	order_group.add_argument("--airdate",		action="store_true",	dest="airdate",		help="Use the airdate ordering.")
-	order_group.add_argument("--absolute",		action="store_true",	dest="absolute",	help="Use the absolute episode number ordering.")
+	order_group.add_argument("--dvd",		action="store_const",	dest="order",	const="dvd",		help="Use the DVD ordering.")
+	order_group.add_argument("--airdate",		action="store_const",	dest="order",	const="airdate",	help="Use the airdate ordering.")
+	order_group.add_argument("--absolute",		action="store_const",	dest="order",	const="absolute",	help="Use the absolute episode number ordering.")
 	
-	parser.add_argument("--config",		metavar="PATH",	action="store",		dest="config",		help="Use the passed config file. (default: %(default)s)")
+#	parser.add_argument("--config",		metavar="PATH",	action="store",		dest="config",		help="Use the passed config file. (default: %(default)s)")
 	parser.add_argument("--dest",		metavar="PATH",	action="store",		dest="dest",		help="Specify the destination of renamed media. (default: %(default)s)")
 	parser.add_argument("--display", 			action="store_true", 	dest="display", 	help="Displays filebot commands instead of running them.")
-	parser.add_argument("--override",	 		action="store_true", 	dest="override",	help="Override any conflicts.")
+#	parser.add_argument("--override",	 		action="store_true", 	dest="override",	help="Override any conflicts.")
 	parser.add_argument("--strict", 			action="store_true", 	dest="strict", 		help="Strict Matching.")
 	parser.add_argument("--non-strict", 			action="store_false", 	dest="strict", 		help="Non-strict matching. This is the default behaivor.")
 	parser.add_argument("--raw",				action="store_true",	dest="raw",		help="Prints the raw output from Filebot.")
-	parser.add_argument("--xattr", 				action="store_true", 	dest="x-attr", 		help="Set extended attribuites.")
+	parser.add_argument("--x-attr",				action="store_true", 	dest="x-attr", 		help="Set extended attribuites.")
 	
 	args = parser.parse_args()
 
@@ -276,15 +268,8 @@ def main():
 	filebot.tv=Format(tv_cfg.get("format", "{n} - {s00e00} - {t}"),tv_cfg.get("agent", "TheTVDB"))
 	filebot.raw=args.raw
 	filebot.display=args.display
-	filebot.dvd=args.dvd
+	filebot.order=args.order
 
-	if args.dvd is True:
-		filebot.order="dvd"
-	elif args.absoulue is True:
-		filebot.order="airdate"
-	else:
-		filebot.order="airdate"
-	
 	dest=general_cfg.get("destination", "./")
 
 	# run filebot
