@@ -63,6 +63,12 @@ class FileBot:
 		self.raw=False
 		self.display=False
 
+	def fix(self):
+		cmd=[self.binary_path]
+		cmd+=["-clear-cache"]
+		
+		subprocess.run(cmd, check=True)
+		
 	def run(self, files, mode=Mode.TV, test=False, dest="./"):
 		cmd=[self.binary_path]
 
@@ -107,9 +113,7 @@ class FileBot:
 		# run the command
 		files=[]
 		p = subprocess.run(cmd, check=True, stdout=subprocess.PIPE, encoding="utf-8")
-#		p = subprocess.Popen(command, shell=True, stdout=subprocess.PIPE, stderr=subprocess.STDOUT)
-#		print(p.stdout)
-#		return None
+
 		for line in p.stdout.split("\n"):
 		#	line = byte_line.decode("utf-8")[:-1]
 
@@ -188,7 +192,8 @@ def main():
 			    config=None,
 			    raw=False,
 			    display=False,
-			    order="airdate")
+			    order="airdate",
+			    fix=False)
 	
 	parser.add_argument('paths', metavar="PATH",  nargs="+", help="Files or directories to match.")
 	
@@ -220,6 +225,7 @@ def main():
 	parser.add_argument("--non-strict", 			action="store_false", 	dest="strict", 		help="Non-strict matching. This is the default behaivor.")
 	parser.add_argument("--raw",				action="store_true",	dest="raw",		help="Prints the raw output from Filebot.")
 	parser.add_argument("--x-attr",				action="store_true", 	dest="x-attr", 		help="Set extended attribuites.")
+	parser.add_argument("--fix",				action="store_true",	dest="fix",		help="Attempt to fix filbot if it's acting wonky.")
 	
 	args = parser.parse_args()
 
@@ -272,6 +278,10 @@ def main():
 
 	dest=general_cfg.get("destination", "./")
 
+	if args.fix is True:
+		filebot.fix()
+		sys.exit()
+	
 	# run filebot
 	if args.mode == Mode.ANIME:
 		print("Anime matching")
