@@ -49,6 +49,7 @@ class FileBot:
 	skip_regex = re.compile(r"Skipped \[(.+)\] because \[(.+)\] already exists")
 	access_regex = re.compile(r"java.nio.file.AccessDeniedException: (.+)")
 	revert_regex = re.compile(r"\[(TEST|MOVE)\] Revert \[(.+)\] to \[(.+)\]")
+	clean_regex = re.compile(r"Delete (.+)")
 	
 	def __init__(self, binary):
 		self.binary_path=binary
@@ -91,7 +92,8 @@ class FileBot:
 
 		if mode is Mode.CLEANUP or mode is Mode.REVERT:
 			if mode is Mode.CLEANUP:
-				pass
+				for f in files:
+					cmd+=['-script', 'fn:cleaner', '{0}'.format(f)]
 			elif mode is Mode.REVERT:
 				for f in files:
 					cmd+=['-script', 'fn:revert', '{0}'.format(f)]
@@ -124,6 +126,7 @@ class FileBot:
 			match_skip = self.skip_regex.match(line)
 			match_access = self.access_regex.match(line)
 			match_revert = self.revert_regex.match(line)
+			match_clean = self.clean_regex.match(line)
 			
 			if match_move is not None:
 				files+=[match_move.group(3)]
@@ -144,9 +147,15 @@ class FileBot:
 			if match_access is not None:
 				if self.raw is not True:
 					print("Access denied: {0}".format(match_access.group(1)))
-				
-		print("")
 
+			if match_clean is not None:
+				files+=[match_clean.group(1)]
+				if self.raw is not True:
+					if test is True:
+						print("Will Delete: {0}".format(match_clean.group(1)))
+					else:
+						print("Deleted: {0}".format(match_clean.group(1)))
+				
 		if len(files) == 0:
 			return None
 		else:
@@ -195,13 +204,13 @@ def main():
 			    order="airdate",
 			    fix=False)
 	
-	parser.add_argument('paths', metavar="PATH",  nargs="+", help="Files or directories to match.")
+	parser.add_argument('paths', metavar="PATH",  nargs="*", help="Files or directories to match.")
 	
 	modes_group = parser.add_argument_group("Modes", "Sets which type of matching is to be done. Only one should be used at a time, as they will override each other. Defaults to TV matching.")
 	modes_group.add_argument("-a", 	"--anime",	action="store_const", 	dest="mode",	const=Mode.ANIME, 	help="Anime matching mode. This will first rename using absolute numbering, then match using season numbering.")
 	modes_group.add_argument("-m",	"--movies", 	action="store_const", 	dest="mode",	const=Mode.MOVIE, 	help="Movie matching mode.")
 	modes_group.add_argument(	"--tv", 	action="store_const", 	dest="mode",	const=Mode.TV,		help="TV matching mode.")
-#	modes_group.add_argument("-c",	"--cleanup", 	action="store_const", 	dest="mode", 	const=Mode.CLEANUP,	help="Cleanup mode.")
+	modes_group.add_argument("-c",	"--cleanup", 	action="store_const", 	dest="mode", 	const=Mode.CLEANUP,	help="Cleanup mode.")
 	modes_group.add_argument(	"--revert", 	action="store_const", 	dest="mode", 	const=Mode.REVERT,	help="Reverts changes made to file.")
 
 	test_group = parser.add_argument_group("Dry Run", "Options for making dry runs. When any of these are set, no files will be modified.")
@@ -281,7 +290,11 @@ def main():
 	if args.fix is True:
 		filebot.fix()
 		return
-	
+
+	if not args.paths:
+		print("No files to process.")
+		return
+		
 	# run filebot
 	if args.mode == Mode.ANIME:
 		print("Anime matching")
