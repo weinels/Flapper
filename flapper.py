@@ -26,10 +26,7 @@ class SortingHelpFormatter(argparse.HelpFormatter):
 # format class
 class Format:
 	def __init__(self, format=None, agent=None):
-		if format is None:
-			self.format = None
-		else:
-			self.format = format#.replace("'","\\'").replace("`","\\`").replace('"','\\"')
+		self.format = format
 		self.agent = agent
 
 	def build(self, dest):
@@ -50,7 +47,8 @@ class FileBot:
 	access_regex = re.compile(r"java.nio.file.AccessDeniedException: (.+)")
 	revert_regex = re.compile(r"\[(TEST|MOVE)\] Revert \[(.+)\] to \[(.+)\]")
 	clean_regex = re.compile(r"Delete (.+)")
-	
+
+	# constructor
 	def __init__(self, binary):
 		self.binary_path=binary
 		self.order="airdate"
@@ -64,46 +62,57 @@ class FileBot:
 		self.raw=False
 		self.display=False
 
+	# attempt to fix a filebot install
 	def fix(self):
+		# clear the cache, this usually fixes things
 		cmd=[self.binary_path]
 		cmd+=["-clear-cache"]
-		
 		subprocess.run(cmd, check=True)
-		
+
+	# primary way to invoke filebot
 	def run(self, files, mode=Mode.TV, test=False, dest="./"):
+		# the command to run will store in a list
 		cmd=[self.binary_path]
 
+		# check if we want to set extended attributes
 		if self.xattr is False:
 			cmd+=["-no-xattr"]
 
+		# check if want non-strict matching
 		if self.strict is not True:
 			cmd+=["-non-strict"]
 
+		# set the episode ordering we want to use
 		if self.order is not None:
 			cmd+=["--order", "{0}".format(self.order)]
 
+		# set wether this is a dry run or not
 		if test is True:
 			cmd+=["--action", "test"]
 		else:
 			cmd+=["--action", "move"]
 
+		# if the destination is the current directory, then leave it out to make the paths look nicer
 		if dest == "./":
 			dest = ""
 
-		if mode is Mode.CLEANUP or mode is Mode.REVERT:
-			if mode is Mode.CLEANUP:
-				for f in files:
-					cmd+=['-script', 'fn:cleaner', '{0}'.format(f)]
-			elif mode is Mode.REVERT:
-				for f in files:
-					cmd+=['-script', 'fn:revert', '{0}'.format(f)]
+		# any mode that has to invoke a Filebot script handles the filenames different
+		if mode is Mode.CLEANUP:
+			for f in files:
+				cmd+=['-script', 'fn:cleaner', '{0}'.format(f)]
+		elif mode is Mode.REVERT:
+			for f in files:
+				cmd+=['-script', 'fn:revert', '{0}'.format(f)]
 		else:
+			# use the appropriate format
 			if mode is Mode.ANIME:
 				cmd+=self.anime.build(dest)
 			elif mode is Mode.MOVIE:
 				cmd+=self.movie.build(dest)
 			elif mode is Mode.TV:
 				cmd+=self.tv.build(dest)
+
+			# tell filebot to rename each file or directory
 			for f in files:
 				cmd+=['-rename', '{0}'.format(f)]
 
@@ -116,38 +125,44 @@ class FileBot:
 		files=[]
 		p = subprocess.run(cmd, check=True, stdout=subprocess.PIPE, encoding="utf-8")
 
+		# Make the output more readable
 		for line in p.stdout.split("\n"):
-		#	line = byte_line.decode("utf-8")[:-1]
-
+			# if the use requested the raw output, print the line
 			if self.raw is True:
 				print(line)
-			
+
+			# perform all the regex matching
 			match_move = self.move_regex.match(line)
 			match_skip = self.skip_regex.match(line)
 			match_access = self.access_regex.match(line)
 			match_revert = self.revert_regex.match(line)
 			match_clean = self.clean_regex.match(line)
-			
+
+			# line up the paths to make visual confirmation easier
 			if match_move is not None:
 				files+=[match_move.group(3)]
 				if self.raw is not True:
 					print("{0} Rename: {1}".format(match_move.group(1), match_move.group(2)))
 					print("         To: {0}".format(match_move.group(3)))
 
+			# line up the paths of skipped files
 			if match_skip is not None:
 				print("Skipped: {0}".format(match_skip.group(1)))
 				print("Because: {0}".format(match_skip.group(2)))
 
+			# line up the paths for reverted files
 			if match_revert is not None:
 				files+=[match_revert.group(3)]
 				if self.raw is not True:
 					print("{0} Revert: {1}".format(match_revert.group(1), match_revert.group(2)))
 					print("         To: {0}".format(match_revert.group(3)))
 
+			# check for permissions errors
 			if match_access is not None:
 				if self.raw is not True:
 					print("Access denied: {0}".format(match_access.group(1)))
 
+			# by default the cleaner script doesn't differentiate it's output for a dry run, so we will do so now
 			if match_clean is not None:
 				files+=[match_clean.group(1)]
 				if self.raw is not True:
@@ -155,8 +170,9 @@ class FileBot:
 						print("Will Delete: {0}".format(match_clean.group(1)))
 					else:
 						print("Deleted: {0}".format(match_clean.group(1)))
-				
-		if len(files) == 0:
+
+		# return a list of successfully processed files, or None if unsuccessful
+		if not files:
 			return None
 		else:
 			return files
@@ -189,9 +205,9 @@ def main():
 	config_file=os.path.expanduser("~/.config/flapper/config.cfg")
 	
 	# parse command line options
-	
 	parser = argparse.ArgumentParser(description="Filebot wrapper.", formatter_class=SortingHelpFormatter)
 
+	# set default parameters
 	parser.set_defaults(mode=Mode.TV,
 			    test=False,
 			    prompt=False,
@@ -267,6 +283,7 @@ def main():
 	config = ConfigParser()
 	config.read(config_file)
 
+	# extract all groups, throwing an error if any were omitted
 	try:
 		tv_cfg=config['TV']
 		movie_cfg=config['MOVIE']
@@ -287,15 +304,21 @@ def main():
 
 	dest=general_cfg.get("destination", "./")
 
+	# if we were asked to fix filebot, do so and exit
 	if args.fix is True:
 		filebot.fix()
 		return
 
+	# at this point, we need to process any passed paths, if there are none, exit
 	if not args.paths:
 		print("No files to process.")
 		return
-		
-	# run filebot
+
+	# TODO: come up with a better way to handle prompts, something that doesn't duplicate so much code 
+	
+	# to match absolute numbered anime to season/episode numbering takes two steps
+	# First, use anidb to get the airdate for each episode
+	# Then, pass the renamed files through TheTVDB to get season/episode numbering
 	if args.mode == Mode.ANIME:
 		print("Anime matching")
 		print("--------------")
@@ -330,7 +353,8 @@ def main():
 					return
 			
 			filebot.run(rfiles, mode=Mode.TV, test=False,  dest=dest)
-			
+
+	# all other matching just invokes filebot directly
 	else:
 		if args.test is True or args.prompt is True:
 			ret = filebot.run(args.paths, mode=args.mode, test=True,  dest=dest)
