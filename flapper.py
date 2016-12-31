@@ -4,6 +4,8 @@ import os
 import subprocess
 import re
 import shlex
+import colorama
+from colorama import Fore
 from configparser import ConfigParser
 from enum import Enum
 from operator import attrgetter
@@ -122,10 +124,18 @@ class FileBot:
 			return True
 
 		# run the command
-		files=[]
-		p = subprocess.run(cmd, check=True, stdout=subprocess.PIPE, encoding="utf-8")
-
+		try:
+			p = subprocess.run(cmd, check=True, stdout=subprocess.PIPE, stderr=subprocess.STDOUT, encoding="utf-8")
+		except subprocess.CalledProcessError as err:
+			print("Filebot error:")
+			if err.stdout is not None:
+				print(err.stdout)
+			if err.stderr is not None:
+				print(err.stderr)
+			return None
+			
 		# Make the output more readable
+		files=[]
 		for line in p.stdout.split("\n"):
 			# if the use requested the raw output, print the line
 			if self.raw is True:
@@ -142,8 +152,8 @@ class FileBot:
 			if match_move is not None:
 				files+=[match_move.group(3)]
 				if self.raw is not True:
-					print("{0} Rename: {1}".format(match_move.group(1), match_move.group(2)))
-					print("         To: {0}".format(match_move.group(3)))
+					print("{2}{0}{4} Rename: {3}{1}{4}".format(match_move.group(1), match_move.group(2), Fore.CYAN, Fore.YELLOW, Fore.RESET))
+					print("         To: {1}{0}{2}".format(match_move.group(3), Fore.GREEN, Fore.RESET))
 
 			# line up the paths of skipped files
 			if match_skip is not None:
@@ -211,7 +221,7 @@ def main():
 	parser.set_defaults(mode=Mode.TV,
 			    test=False,
 			    prompt=False,
-			    dest="./",
+			    dest=None,
 			    filter=None,
 			    name=None,
 			    config=None,
@@ -276,6 +286,7 @@ def main():
 				      "agent": "TheTVDB"}
 			config['GENERAL']={"filebot_binary": "/usr/bin/filebot",
 					   "destination": "./"}
+
 			with open(config_file, 'w') as configfile:
 				config.write(configfile)
 					   
@@ -283,6 +294,9 @@ def main():
 	config = ConfigParser()
 	config.read(config_file)
 
+	# start up colorama
+	colorama.init()
+	
 	# extract all groups, throwing an error if any were omitted
 	try:
 		tv_cfg=config['TV']
@@ -302,7 +316,10 @@ def main():
 	filebot.display=args.display
 	filebot.order=args.order
 
-	dest=general_cfg.get("destination", "./")
+	if args.dest is None:
+		dest=general_cfg.get("destination", "./")
+	else:
+		dest=args.dest
 
 	# if we were asked to fix filebot, do so and exit
 	if args.fix is True:
