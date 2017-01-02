@@ -187,7 +187,7 @@ class FileBot:
 					if test is True:
 						print("Will Delete: {0}".format(match_clean.group(1)))
 					else:
-						print("Deleted: {0}".format(match_clean.group(1)))
+						print("    Deleted: {0}".format(match_clean.group(1)))
 
 		# return a list of successfully processed files, or None if unsuccessful
 		if not files:
@@ -336,6 +336,11 @@ def main():
 		filebot.fix()
 		return
 
+	# when performing cleanup, we don't want to proccess the paths
+	if args.mode == Mode.CLEANUP:
+		run_with_prompt(filebot, args.paths, Mode.CLEANUP, args.test, args.prompt)
+		return
+		
 	# process the paths before Filebot
 	files = build_file_list(args.paths, ignored_cfg.items())
 		
@@ -355,38 +360,11 @@ def main():
 		print("Part 1: Getting airdates.\n")
 
 		rfiles = run_with_prompt(filebot, files, Mode.ANIME, args.test, args.prompt)
-#		if args.test is True or args.prompt is True:
-#			ret = filebot.run(files, mode=Mode.ANIME, test=True,  dest="./")
-#			if ret is not None:
-#				if args.prompt is True:
-#					if selector(["Continue", "Stop"],"#? ") == "Stop":
-#						return
-#				else:
-#					return
-#			else:
-#				return
-#
-#		rfiles = filebot.run(files, mode=Mode.ANIME, test=False,  dest="./")
+		
 		if rfiles is not None:
 			print("Part 2: Matching season/episode numbering.\n")
 
 			run_with_revert_prompt(filebot, rfiles, Mode.TV, args.test, args.prompt, dest)
-#			if args.test is True or args.prompt is True:
-#				ret = filebot.run(rfiles, mode=Mode.TV, test=True,  dest=dest)
-#				if ret is not None:
-#					if args.prompt is True:
-#						res = selector(["Continue", "Revert", "Stop"],"#? ")
-#						if res == "Stop":
-#							return
-#						elif res == "Revert":
-#							filebot.run(rfiles, mode=Mode.REVERT, dest="./")
-#							return
-#					else:
-#						return
-#				else:
-#					return
-#			
-#			filebot.run(rfiles, mode=Mode.TV, test=False,  dest=dest)
 
 	# all other matching just invokes filebot directly
 	else:
