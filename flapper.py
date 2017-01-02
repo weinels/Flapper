@@ -152,20 +152,28 @@ class FileBot:
 			if match_move is not None:
 				files+=[match_move.group(3)]
 				if self.raw is not True:
-					print("{2}{0}{4} Rename: {3}{1}{4}".format(match_move.group(1), match_move.group(2), Fore.CYAN, Fore.YELLOW, Fore.RESET))
-					print("         To: {1}{0}{2}".format(match_move.group(3), Fore.GREEN, Fore.RESET))
+					if match_move.group(1) == "TEST":
+						print("{2}{0}{4} Rename: {3}{1}{4}".format(match_move.group(1), match_move.group(2), Fore.CYAN, Fore.YELLOW, Fore.RESET))
+						print("         To: {1}{0}{2}".format(match_move.group(3), Fore.GREEN, Fore.RESET))
+					else:
+						print("    Renamed: {3}{1}{4}".format(match_move.group(1), match_move.group(2), Fore.CYAN, Fore.YELLOW, Fore.RESET))
+						print("         To: {1}{0}{2}".format(match_move.group(3), Fore.GREEN, Fore.RESET))
 
 			# line up the paths of skipped files
 			if match_skip is not None:
-				print("Skipped: {0}".format(match_skip.group(1)))
-				print("Because: {0}".format(match_skip.group(2)))
+				print("Skipped: {1}{0}{2}".format(match_skip.group(1), Fore.YELLOW, Fore.RESET))
+				print("Because: {1}{0}{2}".format(match_skip.group(2), Fore.GREEN, Fore.RESET))
 
 			# line up the paths for reverted files
 			if match_revert is not None:
 				files+=[match_revert.group(3)]
 				if self.raw is not True:
-					print("{0} Revert: {1}".format(match_revert.group(1), match_revert.group(2)))
-					print("         To: {0}".format(match_revert.group(3)))
+					if match_revert.group(1) == "TEST":
+						print("{2}{0}{4} Revert: {3}{1}{4}".format(match_revert.group(1), match_revert.group(2), Fore.CYAN, Fore.YELLOW, Fore.RESET))
+						print("         To: {1}{0}{2}".format(match_revert.group(3), Fore.GREEN, Fore.RESET))
+					else:
+						print("   Reverted: {3}{1}{4}".format(match_revert.group(1), match_revert.group(2), Fore.CYAN, Fore.YELLOW, Fore.RESET))
+						print("         To: {1}{0}{2}".format(match_revert.group(3), Fore.GREEN, Fore.RESET))
 
 			# check for permissions errors
 			if match_access is not None:
@@ -345,52 +353,78 @@ def main():
 		print("Anime matching")
 		print("--------------")
 		print("Part 1: Getting airdates.\n")
-		if args.test is True or args.prompt is True:
-			ret = filebot.run(files, mode=Mode.ANIME, test=True,  dest="./")
-			if ret is not None:
-				if args.prompt is True:
-					if selector(["Continue", "Stop"],"#? ") == "Stop":
-						return
-				else:
-					return
-			else:
-				return
 
-		rfiles = filebot.run(files, mode=Mode.ANIME, test=False,  dest="./")
+		rfiles = run_with_prompt(filebot, files, Mode.ANIME, args.test, args.prompt)
+#		if args.test is True or args.prompt is True:
+#			ret = filebot.run(files, mode=Mode.ANIME, test=True,  dest="./")
+#			if ret is not None:
+#				if args.prompt is True:
+#					if selector(["Continue", "Stop"],"#? ") == "Stop":
+#						return
+#				else:
+#					return
+#			else:
+#				return
+#
+#		rfiles = filebot.run(files, mode=Mode.ANIME, test=False,  dest="./")
 		if rfiles is not None:
 			print("Part 2: Matching season/episode numbering.\n")
-			if args.test is True or args.prompt is True:
-				ret = filebot.run(rfiles, mode=Mode.TV, test=True,  dest=dest)
-				if ret is not None:
-					if args.prompt is True:
-						res = selector(["Continue", "Revert", "Stop"],"#? ")
-						if res == "Stop":
-							return
-						elif res == "Revert":
-							filebot.run(rfiles, mode=Mode.REVERT, dest="./")
-							return
-					else:
-						return
-				else:
-					return
-			
-			filebot.run(rfiles, mode=Mode.TV, test=False,  dest=dest)
+
+			run_with_revert_prompt(filebot, rfiles, Mode.TV, args.test, args.prompt, dest)
+#			if args.test is True or args.prompt is True:
+#				ret = filebot.run(rfiles, mode=Mode.TV, test=True,  dest=dest)
+#				if ret is not None:
+#					if args.prompt is True:
+#						res = selector(["Continue", "Revert", "Stop"],"#? ")
+#						if res == "Stop":
+#							return
+#						elif res == "Revert":
+#							filebot.run(rfiles, mode=Mode.REVERT, dest="./")
+#							return
+#					else:
+#						return
+#				else:
+#					return
+#			
+#			filebot.run(rfiles, mode=Mode.TV, test=False,  dest=dest)
 
 	# all other matching just invokes filebot directly
 	else:
-		if args.test is True or args.prompt is True:
-			ret = filebot.run(files, mode=args.mode, test=True,  dest=dest)
-			if ret is not None:
-				if args.prompt is True:
-					if selector(["Continue", "Stop"],"#? ") == "Stop":
-						return
-				else:
-					return
+		run_with_prompt(filebot, files, args.mode, args.test, args.prompt, dest)
+
+# run filebot with a prompt to contuine or stop
+def run_with_prompt(filebot, files, mode, test=False, prompt=False, dest="./"):
+	if test is True or prompt is True:
+		if filebot.run(files, mode=mode, test=True,  dest=dest) is not None:
+			if prompt is True:
+				if selector(["Continue", "Stop"],"#? ") == "Stop":
+					return None
 			else:
-				return
+				return None
+		else:
+			return None
 
-		filebot.run(filess, mode=args.mode, test=False,  dest=dest)
+	return filebot.run(files, mode=mode, test=False,  dest=dest)
+	
+# run filebot with a prompt to contuine or stop
+def run_with_revert_prompt(filebot, files, mode, test=False, prompt=False, dest="./"):
+	if test is True or prompt is True:
+		if filebot.run(files, mode=mode, test=True,  dest=dest) is not None:
+			if prompt is True:
+				res = selector(["Continue", "Revert", "Stop"],"#? ")
+				if res == "Stop":
+					return None
+				elif res == "Revert":
+					filebot.run(files, mode=Mode.REVERT)
+					return None
+			else:
+				return None
+		else:
+			return None
 
+	return filebot.run(files, mode=mode, test=False,  dest=dest)
+	
+		
 # recursive function to prepare a file list
 def build_file_list(paths, ignore=None):
 	files=[]
