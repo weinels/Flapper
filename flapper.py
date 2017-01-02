@@ -286,6 +286,7 @@ def main():
 				      "agent": "TheTVDB"}
 			config['GENERAL']={"filebot_binary": "/usr/bin/filebot",
 					   "destination": "./"}
+			config['IGNORED']={}
 
 			with open(config_file, 'w') as configfile:
 				config.write(configfile)
@@ -303,6 +304,7 @@ def main():
 		movie_cfg=config['MOVIE']
 		anime_cfg=config['ANIME']
 		general_cfg=config['GENERAL']
+		ignored_cfg=config['IGNORED']
 	except KeyError as err:
 		print("Malformed config file.\nMissing section: {0}".format(err))
 		sys.exit(1)
@@ -326,8 +328,11 @@ def main():
 		filebot.fix()
 		return
 
+	# process the paths before Filebot
+	files = build_file_list(args.paths, ignored_cfg.items())
+		
 	# at this point, we need to process any passed paths, if there are none, exit
-	if not args.paths:
+	if not files:
 		print("No files to process.")
 		return
 
@@ -341,7 +346,7 @@ def main():
 		print("--------------")
 		print("Part 1: Getting airdates.\n")
 		if args.test is True or args.prompt is True:
-			ret = filebot.run(args.paths, mode=Mode.ANIME, test=True,  dest="./")
+			ret = filebot.run(files, mode=Mode.ANIME, test=True,  dest="./")
 			if ret is not None:
 				if args.prompt is True:
 					if selector(["Continue", "Stop"],"#? ") == "Stop":
@@ -351,7 +356,7 @@ def main():
 			else:
 				return
 
-		rfiles = filebot.run(args.paths, mode=Mode.ANIME, test=False,  dest="./")
+		rfiles = filebot.run(files, mode=Mode.ANIME, test=False,  dest="./")
 		if rfiles is not None:
 			print("Part 2: Matching season/episode numbering.\n")
 			if args.test is True or args.prompt is True:
@@ -374,7 +379,7 @@ def main():
 	# all other matching just invokes filebot directly
 	else:
 		if args.test is True or args.prompt is True:
-			ret = filebot.run(args.paths, mode=args.mode, test=True,  dest=dest)
+			ret = filebot.run(files, mode=args.mode, test=True,  dest=dest)
 			if ret is not None:
 				if args.prompt is True:
 					if selector(["Continue", "Stop"],"#? ") == "Stop":
@@ -384,8 +389,45 @@ def main():
 			else:
 				return
 
-		filebot.run(args.paths, mode=args.mode, test=False,  dest=dest)
+		filebot.run(filess, mode=args.mode, test=False,  dest=dest)
 
+# recursive function to prepare a file list
+def build_file_list(paths, ignore=None):
+	files=[]
+		
+	# search each path
+	for path in paths:
+		p = Path(path)
+
+		# check that the path exists
+		if not p.exists():
+			print("{3}Does not exist{2}: {0}".format(p, Fore.YELLOW, Fore.RESET, Fore.RED))
+			continue
+		# for a directory, recurse on the contents
+		if p.is_dir():
+			#print("Directory: {0}".format(p.resolve()))
+			for x in p.iterdir():
+				files += build_file_list([x.resolve()],ignore)
+		else:
+			#print("File: {0}".format(p.resolve()))
+
+			# get a string of the concrete path
+			f = str(p.resolve())
+			good = True
+
+			# try all of the ignored patterns on the filename
+			for key, pattern in ignore:
+				ret = re.search(pattern, f)
+				if ret is not None:
+					print("{4}Ignored{3} [{0}]: {1}".format(key, f, Fore.YELLOW, Fore.RESET, Fore.RED))
+					good = False
+					break
+
+			# if none of the patterns matched, add the file to the list
+			if good:
+				files += [f]
+	return files
+		
 # keep at bottom
 if __name__ == "__main__":
 	main()
