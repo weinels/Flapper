@@ -127,7 +127,7 @@ class FileBot:
 		try:
 			p = subprocess.run(cmd, check=True, stdout=subprocess.PIPE, stderr=subprocess.STDOUT, encoding="utf-8")
 		except subprocess.CalledProcessError as err:
-			print("Filebot error:")
+			print("{0}Filebot Error{1}".format(Fore.RED, Fore.RESET))
 			if err.stdout is not None:
 				print(err.stdout)
 			if err.stderr is not None:
@@ -185,7 +185,7 @@ class FileBot:
 				files+=[match_clean.group(1)]
 				if self.raw is not True:
 					if test is True:
-						print("Will Delete: {0}".format(match_clean.group(1)))
+						print("{1}TEST{2} Delete: {0}".format(match_clean.group(1), Fore.CYAN, Fore.RESET))
 					else:
 						print("    Deleted: {0}".format(match_clean.group(1)))
 
@@ -431,7 +431,7 @@ def build_file_list(paths, ignore=None):
 			for key, pattern in ignore:
 				ret = re.search(pattern, f)
 				if ret is not None:
-					print("{4}Ignored{3} [{0}]: {1}".format(key, f, Fore.YELLOW, Fore.RESET, Fore.RED))
+					print("{4}Ignored{3} [{0}]: {1}".format(key, f, Fore.YELLOW, Fore.RESET, Fore.BLUE))
 					good = False
 					break
 
