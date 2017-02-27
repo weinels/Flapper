@@ -86,7 +86,11 @@ class FileBot:
 
 		# set the episode ordering we want to use
 		if self.order is not None:
-			cmd+=["--order", "{0}".format(self.order)]
+			cmd+=["--order", str(self.order)]
+
+		if self.filters is not None:
+			for f in self.filters:
+				cmd+=["--filter", str(f)]
 
 		# set wether this is a dry run or not
 		if test is True:
@@ -101,10 +105,10 @@ class FileBot:
 		# any mode that has to invoke a Filebot script handles the filenames different
 		if mode is Mode.CLEANUP:
 			for f in files:
-				cmd+=['-script', 'fn:cleaner', '{0}'.format(f)]
+				cmd+=['-script', 'fn:cleaner', str(f)]
 		elif mode is Mode.REVERT:
 			for f in files:
-				cmd+=['-script', 'fn:revert', '{0}'.format(f)]
+				cmd+=['-script', 'fn:revert', str(f)]
 		else:
 			# use the appropriate format
 			if mode is Mode.ANIME:
@@ -116,7 +120,7 @@ class FileBot:
 
 			# tell filebot to rename each file or directory
 			for f in files:
-				cmd+=['-rename', '{0}'.format(f)]
+				cmd+=['-rename', str(f)]
 
 		# check to see if we need to display the command
 		if self.display is True:		
@@ -240,35 +244,36 @@ def main():
 	
 	parser.add_argument('paths', metavar="PATH",  nargs="*", help="Files or directories to match.")
 	
-	modes_group = parser.add_argument_group("Modes", "Sets which type of matching is to be done. Only one should be used at a time, as they will override each other. Defaults to TV matching.")
+	modes_group = parser.add_argument_group("modes", "Sets which type of matching is to be done. Only one should be used at a time, as they will override each other. Defaults to TV matching.")
 	modes_group.add_argument("-a", 	"--anime",	action="store_const", 	dest="mode",	const=Mode.ANIME, 	help="Anime matching mode. This will first rename using absolute numbering, then match using season numbering.")
 	modes_group.add_argument("-m",	"--movies", 	action="store_const", 	dest="mode",	const=Mode.MOVIE, 	help="Movie matching mode.")
 	modes_group.add_argument(	"--tv", 	action="store_const", 	dest="mode",	const=Mode.TV,		help="TV matching mode.")
 	modes_group.add_argument("-c",	"--cleanup", 	action="store_const", 	dest="mode", 	const=Mode.CLEANUP,	help="Cleanup mode.")
 	modes_group.add_argument(	"--revert", 	action="store_const", 	dest="mode", 	const=Mode.REVERT,	help="Reverts changes made to file.")
 
-	test_group = parser.add_argument_group("Dry Run", "Options for making dry runs. When any of these are set, no files will be modified.")
+	test_group = parser.add_argument_group("dry run", "Options for making dry runs. When any of these are set, no files will be modified.")
 	test_group.add_argument("-t", "--test",		action="store_true",	dest="test",	help="Performs a test run, displaying the changes that would be made.")
 	test_group.add_argument("-p", "--prompt", 	action="store_true", 	dest="prompt",	help="Make a test run then prompt the user to continue with matching. (Same as -tp).")
 
-#	filter_group = parser.add_argument_group("Filters", "These commands apply filters to Filebot. These commands may be used multiple times to apply multiple filters.")
-#	filter_group.add_argument("-f", "--filter", 	metavar="STRING", 	action="append",	dest="filters",		help="Applies the passed filter.")
-#	filter_group.add_argument("-n", "--name", 	metavar="STRING", 	action="append",	dest="names",		help="Applies a filter to match the show/movie name.")
+	filter_group = parser.add_argument_group("filters", "These commands apply filters to Filebot. These commands may be used multiple times to apply multiple filters.")
+	filter_group.add_argument("-f", "--filter", 	metavar="STRING", 	action="append",	dest="filters",		help="Applies the passed filter.")
+	filter_group.add_argument("-n", "--name", 	metavar="STRING", 	action="append",	dest="names",		help="Applies a filter to match to accept only show names that contain the passed string.")
+	filter_group.add_argument("-y", "--year", 	metavar="INT", 		action="store",		dest="year",type=int,	help="Applies a filter to discard matches aired before the passed year.")
 
-	order_group = parser.add_argument_group("Ordering", "Determines which ordering to use when matching. Airdate is the defualt.")
+	order_group = parser.add_argument_group("ordering", "Determines which ordering to use when matching. Airdate is the defualt.")
 	order_group.add_argument("--dvd",		action="store_const",	dest="order",	const="dvd",		help="Use the DVD ordering.")
 	order_group.add_argument("--airdate",		action="store_const",	dest="order",	const="airdate",	help="Use the airdate ordering.")
 	order_group.add_argument("--absolute",		action="store_const",	dest="order",	const="absolute",	help="Use the absolute episode number ordering.")
 	
-#	parser.add_argument("--config",		metavar="PATH",	action="store",		dest="config",		help="Use the passed config file. (default: %(default)s)")
-	parser.add_argument("--dest",		metavar="PATH",	action="store",		dest="dest",		help="Specify the destination of renamed media. (default: %(default)s)")
-	parser.add_argument("--display", 			action="store_true", 	dest="display", 	help="Displays filebot commands instead of running them.")
-#	parser.add_argument("--override",	 		action="store_true", 	dest="override",	help="Override any conflicts.")
-	parser.add_argument("--strict", 			action="store_true", 	dest="strict", 		help="Strict Matching.")
-	parser.add_argument("--non-strict", 			action="store_false", 	dest="strict", 		help="Non-strict matching. This is the default behaivor.")
-	parser.add_argument("--raw",				action="store_true",	dest="raw",		help="Prints the raw output from Filebot.")
-	parser.add_argument("--x-attr",				action="store_true", 	dest="x-attr", 		help="Set extended attribuites.")
-	parser.add_argument("--fix",				action="store_true",	dest="fix",		help="Attempt to fix filbot if it's acting wonky.")
+#	parser.add_argument("--config",			metavar="PATH",	action="store",		dest="config",		help="Use the passed config file. (default: %(default)s)")
+	parser.add_argument("--dest",			metavar="PATH",	action="store",		dest="dest",		help="Specify the destination of renamed media. (default: %(default)s)")
+	parser.add_argument("--display", 				action="store_true", 	dest="display", 	help="Displays filebot commands instead of running them.")
+#	parser.add_argument("--override", 				action="store_true", 	dest="override",	help="Override any conflicts.")
+	parser.add_argument("--strict", 				action="store_true", 	dest="strict", 		help="Strict Matching.")
+	parser.add_argument("--non-strict", 				action="store_false", 	dest="strict", 		help="Non-strict matching. This is the default behaivor.")
+	parser.add_argument("--raw",					action="store_true",	dest="raw",		help="Prints the raw output from Filebot.")
+	parser.add_argument("--x-attr",					action="store_true", 	dest="x-attr", 		help="Set extended attribuites.")
+	parser.add_argument("--fix",					action="store_true",	dest="fix",		help="Attempt to fix filbot if it's acting wonky.")
 	
 	args = parser.parse_args()
 
@@ -326,6 +331,22 @@ def main():
 	filebot.display=args.display
 	filebot.order=args.order
 
+	filters = []
+	
+	if args.filters is not None:
+		for f in args.filters:
+			filters.append(f)
+
+	if args.names is not None:
+		for n in args.names:
+			filters.append("n =~ /{0}/".format(n))
+
+	if args.year is not None and args.year > 0:
+		filters.append("y >= {0}".format(args.year))
+		
+	if len(filters) > 0:
+		filebot.filters = filters
+	
 	if args.dest is None:
 		dest=general_cfg.get("destination", "./")
 	else:
