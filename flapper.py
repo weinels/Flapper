@@ -450,7 +450,7 @@ def build_file_list(paths, ignore=None):
 
 			# try all of the ignored patterns on the filename
 			for key, pattern in ignore:
-				ret = re.search(pattern, f)
+				ret = re.search(pattern, f, re.I)
 				if ret is not None:
 					print("{4}Ignored{3} [{0}]: {1}".format(key, f, Fore.YELLOW, Fore.RESET, Fore.BLUE))
 					good = False
