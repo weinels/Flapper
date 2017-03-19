@@ -240,7 +240,8 @@ def main():
 			    raw=False,
 			    display=False,
 			    order="airdate",
-			    fix=False)
+			    fix=False,
+			    new=False)
 	
 	parser.add_argument('paths', metavar="PATH",  nargs="*", help="Files or directories to match.")
 	
@@ -256,10 +257,15 @@ def main():
 	test_group.add_argument("-p", "--prompt", 	action="store_true", 	dest="prompt",	help="Make a test run then prompt the user to continue with matching. (Same as -tp).")
 
 	filter_group = parser.add_argument_group("filters", "These commands apply filters to Filebot. These commands may be used multiple times to apply multiple filters.")
-	filter_group.add_argument("-f", "--filter", 	metavar="STRING", 	action="append",	dest="filters",		help="Applies the passed filter.")
-	filter_group.add_argument("-n", "--name", 	metavar="STRING", 	action="append",	dest="names",		help="Applies a filter to match to accept only show names that contain the passed string.")
-	filter_group.add_argument("-y", "--year", 	metavar="INT", 		action="store",		dest="year",type=int,	help="Applies a filter to discard matches aired before the passed year.")
-
+	filter_group.add_argument("--filter", 	metavar="STRING", 	action="append",	dest="filters",			help="Applies the passed filter.")
+	filter_group.add_argument("--name", 	metavar="STRING", 	action="append",	dest="names",			help="Matches only show names that contain %(metavar)s.")
+	filter_group.add_argument("--before", 	metavar="INT", 		action="store",		dest="before",	type=int,	help="Only matches if aired before %(metavar)s.")
+	filter_group.add_argument("--year", 	metavar="INT", 		action="store",		dest="year",	type=int,	help="Only matches if aired in %(metavar)s.")
+	filter_group.add_argument("--after", 	metavar="INT", 		action="store",		dest="after",	type=int,	help="Only matches if aired after %(metavar)s.")
+	filter_group.add_argument("--age", 	metavar="INT", 		action="store",		dest="age",	type=int,	help="Only matches if aired within the last %(metavar)s days.")
+	filter_group.add_argument("--new",				action="store_true",	dest="new",			help="Only match if aired in the last week.")
+	# TODO change year option to --before and --after
+	
 	order_group = parser.add_argument_group("ordering", "Determines which ordering to use when matching. Airdate is the defualt.")
 	order_group.add_argument("--dvd",		action="store_const",	dest="order",	const="dvd",		help="Use the DVD ordering.")
 	order_group.add_argument("--airdate",		action="store_const",	dest="order",	const="airdate",	help="Use the airdate ordering.")
@@ -332,7 +338,8 @@ def main():
 	filebot.order=args.order
 
 	filters = []
-	
+
+	# process any filter arguments
 	if args.filters is not None:
 		for f in args.filters:
 			filters.append(f)
@@ -341,9 +348,22 @@ def main():
 		for n in args.names:
 			filters.append("n =~ /{0}/".format(n))
 
-	if args.year is not None and args.year > 0:
-		filters.append("y >= {0}".format(args.year))
+	if args.before is not None and args.before > 0:
+		filters.append("y < {0}".format(args.before))
 		
+	if args.after is not None and args.after > 0:
+		filters.append("y > {0}".format(args.after))
+		
+	if args.year is not None and args.year > 0:
+		filters.append("y == {0}".format(args.year))
+
+	if args.age is not None and args.age > 0:
+		filters.append("age <= {0}".format(args.age))
+
+	if args.new:
+		filters.append("age < 7")
+
+	# pass the filters onto the filebot handler
 	if len(filters) > 0:
 		filebot.filters = filters
 	
