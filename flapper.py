@@ -44,7 +44,7 @@ class Format:
 # Filebot wrapper
 class FileBot:
 	# pre-compiled regex objects
-	move_regex = re.compile(r"\[(TEST|MOVE)\] Rename \[(.+)\] to \[(.+)\]")
+	move_regex = re.compile(r"\[(TEST|MOVE)\] From \[(.+)\] to \[(.+)\]")
 	skip_regex = re.compile(r"Skipped \[(.+)\] because \[(.+)\] already exists")
 	access_regex = re.compile(r"java.nio.file.AccessDeniedException: (.+)")
 	revert_regex = re.compile(r"\[(TEST|MOVE)\] Revert \[(.+)\] to \[(.+)\]")
@@ -63,6 +63,7 @@ class FileBot:
 		self.strict=False
 		self.raw=False
 		self.display=False
+		self.debug=False
 
 	# attempt to fix a filebot install
 	def fix(self):
@@ -137,6 +138,9 @@ class FileBot:
 			if err.stderr is not None:
 				print(err.stderr)
 			return None
+
+		if self.debug:
+			debug_print("Raw filebot output:\n" + p.stdout)
 			
 		# Make the output more readable
 		files=[]
@@ -221,7 +225,11 @@ def selector(items, prompt):
 		reply = input(prompt).strip()
 		
 	return items[int(reply)-1]
-		
+
+#prints debug info
+def debug_print(msg):
+	print("[{color}DEBUG{clear}] {message}".format(message=msg, color=Fore.BLUE, clear=Fore.RESET))
+	
 def main():
 	# some default parameters
 	config_file=os.path.expanduser("~/.config/flapper/config.cfg")
@@ -241,7 +249,8 @@ def main():
 			    display=False,
 			    order="airdate",
 			    fix=False,
-			    new=False)
+			    new=False,
+			    debug=False)
 	
 	parser.add_argument('paths', metavar="PATH",  nargs="*", help="Files or directories to match.")
 	
@@ -280,6 +289,7 @@ def main():
 	parser.add_argument("--raw",					action="store_true",	dest="raw",		help="Prints the raw output from Filebot.")
 	parser.add_argument("--x-attr",					action="store_true", 	dest="x-attr", 		help="Set extended attribuites.")
 	parser.add_argument("--fix",					action="store_true",	dest="fix",		help="Attempt to fix filbot if it's acting wonky.")
+	parser.add_argument("--debug",					action="store_true",	dest="debug",		help="Shows debug output.")
 	
 	args = parser.parse_args()
 
@@ -336,6 +346,7 @@ def main():
 	filebot.raw=args.raw
 	filebot.display=args.display
 	filebot.order=args.order
+	filebot.debug=args.debug
 
 	filters = []
 
