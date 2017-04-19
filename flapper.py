@@ -64,6 +64,7 @@ class FileBot:
 		self.raw=False
 		self.display=False
 		self.debug=False
+		self.query=None
 
 	# attempt to fix a filebot install
 	def fix(self):
@@ -93,6 +94,9 @@ class FileBot:
 			for f in self.filters:
 				cmd+=["--filter", str(f)]
 
+		if self.query is not None:
+			cmd += ["--q", str(self.query)]
+			
 		# set wether this is a dry run or not
 		if test is True:
 			cmd+=["--action", "test"]
@@ -250,7 +254,8 @@ def main():
 			    order="airdate",
 			    fix=False,
 			    new=False,
-			    debug=False)
+			    debug=False,
+			    query=None)
 	
 	parser.add_argument('paths', metavar="PATH",  nargs="*", help="Files or directories to match.")
 	
@@ -273,7 +278,6 @@ def main():
 	filter_group.add_argument("--after", 	metavar="INT", 		action="store",		dest="after",	type=int,	help="Only matches if aired after %(metavar)s.")
 	filter_group.add_argument("--age", 	metavar="INT", 		action="store",		dest="age",	type=int,	help="Only matches if aired within the last %(metavar)s days.")
 	filter_group.add_argument("--new",				action="store_true",	dest="new",			help="Only match if aired in the last week.")
-	# TODO change year option to --before and --after
 	
 	order_group = parser.add_argument_group("ordering", "Determines which ordering to use when matching. Airdate is the defualt.")
 	order_group.add_argument("--dvd",		action="store_const",	dest="order",	const="dvd",		help="Use the DVD ordering.")
@@ -290,6 +294,7 @@ def main():
 	parser.add_argument("--x-attr",					action="store_true", 	dest="x-attr", 		help="Set extended attribuites.")
 	parser.add_argument("--fix",					action="store_true",	dest="fix",		help="Attempt to fix filbot if it's acting wonky.")
 	parser.add_argument("--debug",					action="store_true",	dest="debug",		help="Shows debug output.")
+	parser.add_argument("-q", "--query",		metavar="STRING", action="store",	dest="query",		help="Defines what query Filebot will use.")
 	
 	args = parser.parse_args()
 
@@ -383,6 +388,9 @@ def main():
 	else:
 		dest=args.dest
 
+	if args.query is not None:
+		filebot.query = args.query
+		
 	# if we were asked to fix filebot, do so and exit
 	if args.fix is True:
 		filebot.fix()
