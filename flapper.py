@@ -425,10 +425,13 @@ def main():
 			print("Part 2: Matching season/episode numbering.\n")
 
 			run_with_revert_prompt(filebot, rfiles, Mode.TV, args.test, args.prompt, dest)
+		else:
+			sys.exit(1)
 
 	# all other matching just invokes filebot directly
 	else:
-		run_with_prompt(filebot, files, args.mode, args.test, args.prompt, dest)
+		if run_with_prompt(filebot, files, args.mode, args.test, args.prompt, dest) is None:
+			sys.exit(1)
 
 # run filebot with a prompt to contuine or stop
 def run_with_prompt(filebot, files, mode, test=False, prompt=False, dest="./"):
@@ -503,3 +506,4 @@ def build_file_list(paths, ignore=None):
 # keep at bottom
 if __name__ == "__main__":
 	main()
+	sys.exit(0)
