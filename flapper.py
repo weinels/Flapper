@@ -27,14 +27,21 @@ class SortingHelpFormatter(argparse.HelpFormatter):
 
 # format class
 class Format:
-	def __init__(self, format=None, agent=None):
+	def __init__(self, format=None, dryrun=None, agent=None):
 		self.format = format
+		self.dryrun = dryrun
 		self.agent = agent
 
-	def build(self, dest):
+	def build(self, dest, dryrun=False):
 		cmd = []
-		if self.format is not None:
-			cmd+=['--format',  '{0}'.format(os.path.join(dest,self.format))]
+		if dryrun:
+			if self.dryrun is not None:
+				cmd+=['--format',  '{0}'.format(os.path.join(dest,self.dryrun))]
+			else:
+				cmd+=['--format',  '{0}'.format(os.path.join(dest,self.format))]
+		else:
+			if self.format is not None:
+				cmd+=['--format',  '{0}'.format(os.path.join(dest,self.format))]
 
 		if self.agent is not None:
 			cmd+=['--db', '{0}'.format(self.agent)]
@@ -55,6 +62,9 @@ class FileBot:
 		self.binary_path=binary
 		self.order="airdate"
 		self.strict=False
+		self.anime=Format()
+		self.movie=Format()
+		self.tv=Format()
 		self.anime=Format()
 		self.movie=Format()
 		self.tv=Format()
@@ -117,11 +127,11 @@ class FileBot:
 		else:
 			# use the appropriate format
 			if mode is Mode.ANIME:
-				cmd+=self.anime.build(dest)
+				cmd+=self.anime.build(dest, test)
 			elif mode is Mode.MOVIE:
-				cmd+=self.movie.build(dest)
+				cmd+=self.movie.build(dest, test)
 			elif mode is Mode.TV:
-				cmd+=self.tv.build(dest)
+				cmd+=self.tv.build(dest, test)
 
 			# tell filebot to rename each file or directory
 			for f in files:
@@ -345,9 +355,9 @@ def main():
 	
 	# build the Filebot wrapper
 	filebot = FileBot(general_cfg.get("filebot_binary","/usr/bin/filebot"))
-	filebot.anime=Format(anime_cfg.get("format", "{n} - [{absolute}] - {t}"), anime_cfg.get("agent", "anidb"))
-	filebot.movie=Format(movie_cfg.get("format", "{n} ({y})"), movie_cfg.get("agent", "TheMovieDB"))
-	filebot.tv=Format(tv_cfg.get("format", "{n} - {s00e00} - {t}"),tv_cfg.get("agent", "TheTVDB"))
+	filebot.anime=Format(anime_cfg.get("format", "{n} - [{absolute}] - {t}"), anime_cfg.get("dryrun", None), anime_cfg.get("agent", "anidb"))
+	filebot.movie=Format(movie_cfg.get("format", "{n} ({y})"), movie_cfg.get("dryrun", None), movie_cfg.get("agent", "TheMovieDB"))
+	filebot.tv=Format(tv_cfg.get("format", "{n} - {s00e00} - {t}"), tv_cfg.get("dryrun", None), tv_cfg.get("agent", "TheTVDB"))
 	filebot.raw=args.raw
 	filebot.display=args.display
 	filebot.order=args.order
