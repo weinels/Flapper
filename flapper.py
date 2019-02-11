@@ -265,7 +265,8 @@ def main():
 			    fix=False,
 			    new=False,
 			    debug=False,
-			    query=None)
+			    query=None,
+			    limit=None)
 	
 	parser.add_argument('paths', metavar="PATH",  nargs="*", help="Files or directories to match.")
 	
@@ -305,6 +306,7 @@ def main():
 	parser.add_argument("--fix",					action="store_true",	dest="fix",		help="Attempt to fix filbot if it's acting wonky.")
 	parser.add_argument("--debug",					action="store_true",	dest="debug",		help="Shows debug output.")
 	parser.add_argument("-q", "--query",		metavar="STRING", action="store",	dest="query",		help="Defines what query Filebot will use.")
+	parser.add_argument("--limit",			metavar="INT",	action="store",		dest="limit",type=int,	help="Processes input INT files at a time")
 	
 	args = parser.parse_args()
 
@@ -341,6 +343,10 @@ def main():
 
 	# start up colorama
 	colorama.init()
+
+	# ignore any ints less than 1
+	if args.limit is not None and args.limit < 1:
+		args.limit = None
 	
 	# extract all groups, throwing an error if any were omitted
 	try:
@@ -424,24 +430,45 @@ def main():
 	# to match absolute numbered anime to season/episode numbering takes two steps
 	# First, use anidb to get the airdate for each episode
 	# Then, pass the renamed files through TheTVDB to get season/episode numbering
-	if args.mode == Mode.ANIME:
-		print("Anime matching")
-		print("--------------")
-		print("Part 1: Getting airdates.\n")
+	if args.limit is not None:
+		for chunk in [files[i:i+args.limit] for i in range(0,len(files), args.limit)]:
+			if args.mode == Mode.ANIME:
+				print("Anime matching")
+				print("--------------")
+				print("Part 1: Getting airdates.\n")
 
-		rfiles = run_with_prompt(filebot, files, Mode.ANIME, args.test, args.prompt)
-		
-		if rfiles is not None:
-			print("Part 2: Matching season/episode numbering.\n")
+				rfiles = run_with_prompt(filebot, chunk, Mode.ANIME, args.test, args.prompt)
 
-			run_with_revert_prompt(filebot, rfiles, Mode.TV, args.test, args.prompt, dest)
-		else:
-			sys.exit(1)
+				if rfiles is not None:
+					print("Part 2: Matching season/episode numbering.\n")
 
-	# all other matching just invokes filebot directly
+					run_with_revert_prompt(filebot, rfiles, Mode.TV, args.test, args.prompt, dest)
+				else:
+					sys.exit(1)
+
+			# all other matching just invokes filebot directly
+			else:
+				if run_with_prompt(filebot, chunk, args.mode, args.test, args.prompt, dest) is None:
+					sys.exit(1)
 	else:
-		if run_with_prompt(filebot, files, args.mode, args.test, args.prompt, dest) is None:
-			sys.exit(1)
+		if args.mode == Mode.ANIME:
+			print("Anime matching")
+			print("--------------")
+			print("Part 1: Getting airdates.\n")
+
+			rfiles = run_with_prompt(filebot, files, Mode.ANIME, args.test, args.prompt)
+
+			if rfiles is not None:
+				print("Part 2: Matching season/episode numbering.\n")
+
+				run_with_revert_prompt(filebot, rfiles, Mode.TV, args.test, args.prompt, dest)
+			else:
+				sys.exit(1)
+
+		# all other matching just invokes filebot directly
+		else:
+			if run_with_prompt(filebot, files, args.mode, args.test, args.prompt, dest) is None:
+				sys.exit(1)
 
 # run filebot with a prompt to contuine or stop
 def run_with_prompt(filebot, files, mode, test=False, prompt=False, dest="./"):
