@@ -419,7 +419,7 @@ def main():
 		
 	# process the paths before Filebot
 	files = build_file_list(args.paths, ignored_cfg.items())
-		
+
 	# at this point, we need to process any passed paths, if there are none, exit
 	if not files:
 		print("No files to process.")
@@ -450,6 +450,7 @@ def main():
 			else:
 				if run_with_prompt(filebot, chunk, args.mode, args.test, args.prompt, dest) is None:
 					sys.exit(1)
+			print()
 	else:
 		if args.mode == Mode.ANIME:
 			print("Anime matching")
@@ -538,7 +539,8 @@ def build_file_list(paths, ignore=None):
 			# if none of the patterns matched, add the file to the list
 			if good:
 				files += [f]
-	return files
+				
+	return sorted(sorted(files), key=lambda x: Path(x).stem)
 		
 # keep at bottom
 if __name__ == "__main__":
